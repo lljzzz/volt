@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+build/
+dist/
+
+volt_config.json
+volt_config.json.tmp
+volt_config.corrupt-*.json
+clipboard_history.json
+notes.json
+volt.log
+volt.log.old
+VoltData/
+portable
