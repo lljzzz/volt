@@ -2,7 +2,7 @@ from PySide6.QtCore import (Property, QEasingCurve, QEvent, QPoint,
                             QPropertyAnimation, QRect, QRectF, QSize, Qt, QTimer,
                             Signal)
 from PySide6.QtGui import (QColor, QCursor, QFont, QFontMetrics, QGuiApplication,
-                           QPainter, QPen)
+                           QImage, QPainter, QPen)
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QButtonGroup,
                                QComboBox, QFrame, QHBoxLayout, QLabel, QLayout,
                                QMessageBox, QPushButton, QSizePolicy, QStyle,
@@ -17,6 +17,7 @@ ROLE_GLYPH = Qt.UserRole + 2
 ROLE_COLOR = Qt.UserRole + 3
 ROLE_RIGHT = Qt.UserRole + 4
 ROLE_DIM = Qt.UserRole + 5
+ROLE_THUMB = Qt.UserRole + 6
 
 
 def repolish(w: QWidget, object_name: str | None = None):
@@ -492,8 +493,21 @@ class RichDelegate(QStyledItemDelegate):
         right = index.data(ROLE_RIGHT) or ""
         dim = bool(index.data(ROLE_DIM)) or not enabled
 
+        thumb = index.data(ROLE_THUMB)
+        if callable(thumb):
+            thumb = thumb()
         x = r.left() + 10
-        if glyph:
+        if isinstance(thumb, QImage) and not thumb.isNull():
+            size = thumb.size().scaled(46, 34, Qt.KeepAspectRatio)
+            tr = QRectF(x + (46 - size.width()) / 2, r.center().y() - size.height() / 2,
+                        size.width(), size.height())
+            p.setRenderHint(QPainter.SmoothPixmapTransform)
+            p.drawImage(tr, thumb)
+            p.setPen(QPen(QColor(T.border_2), 1))
+            p.setBrush(Qt.NoBrush)
+            p.drawRect(tr.adjusted(-0.5, -0.5, 0.5, 0.5))
+            x += 58
+        elif glyph:
             p.setFont(icons.font(15))
             p.setPen(QColor(color(index.data(ROLE_COLOR)) or T.text_dim))
             p.drawText(QRectF(x, r.top(), 20, r.height()), Qt.AlignCenter,
@@ -547,8 +561,10 @@ def rich_list(view, compact=False):
     return view
 
 
-def set_item(item, title, sub="", glyph=None, color=None, right="", dim=False):
+def set_item(item, title, sub="", glyph=None, color=None, right="", dim=False,
+             thumb=None):
     item.setText(title)
+    item.setData(ROLE_THUMB, thumb)
     item.setData(ROLE_SUB, sub)
     item.setData(ROLE_GLYPH, glyph)
     item.setData(ROLE_COLOR, color)
@@ -777,3 +793,40 @@ class SearchButton(QAbstractButton):
         p.setPen(fg)
         p.drawText(QRectF(text_x, 0, r.width() - text_x - chip_w - 10, r.height()),
                    Qt.AlignVCenter | Qt.AlignLeft, "Search")
+
+
+class ImagePreview(QWidget):
+    def __init__(self):
+        super().__init__()
+        self._img = None
+        self._cache = (None, None)
+        self.setMinimumSize(120, 90)
+
+    def set_image(self, img):
+        self._img = img if img is not None and not img.isNull() else None
+        self._cache = (None, None)
+        self.update()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(QPen(QColor(T.border_2), 1))
+        p.setBrush(QColor(T.field))
+        p.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), 8, 8)
+        if self._img is None:
+            return
+        area = self.rect().adjusted(12, 12, -12, -12)
+        size = self._img.size()
+        if size.width() > area.width() or size.height() > area.height():
+            size = size.scaled(area.size(), Qt.KeepAspectRatio)
+        key, scaled = self._cache
+        if key != size:
+            scaled = self._img.scaled(size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            self._cache = (size, scaled)
+        x = area.x() + (area.width() - size.width()) // 2
+        y = area.y() + (area.height() - size.height()) // 2
+        p.drawImage(QPoint(x, y), scaled)
+        p.setRenderHint(QPainter.Antialiasing, False)
+        p.setPen(QPen(QColor(T.border_2), 1))
+        p.setBrush(Qt.NoBrush)
+        p.drawRect(x - 1, y - 1, size.width() + 1, size.height() + 1)

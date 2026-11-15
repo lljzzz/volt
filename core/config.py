@@ -151,6 +151,7 @@ DEFAULTS = {
     },
     "clipboard": {
         "enabled": True,
+        "images": True,
         "max_items": 100,
         "remember_history": False,
         "ignore_sensitive": True,

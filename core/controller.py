@@ -268,7 +268,15 @@ class Controller(QObject):
         if self.clipboard is None:
             return
         self.clipboard.copy(text)
+        self._paste_to(hwnd)
 
+    def paste_image_into(self, hwnd: int, entry: dict):
+        if self.clipboard is None:
+            return
+        self.clipboard.copy_image(entry)
+        self._paste_to(hwnd)
+
+    def _paste_to(self, hwnd: int):
         def send():
             time.sleep(0.05)
             winman.activate(hwnd)

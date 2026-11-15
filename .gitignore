@@ -8,6 +8,7 @@ volt_config.json
 volt_config.json.tmp
 volt_config.corrupt-*.json
 clipboard_history.json
+clipboard_images/
 notes.json
 volt.log
 volt.log.old

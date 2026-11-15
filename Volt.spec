@@ -1,4 +1,15 @@
 import os
+import sys
+
+# Keep DLL discovery within Windows, Python and the package paths added by hooks.
+# Otherwise a third-party ICU (for example Poppler's) can shadow the Windows ICU
+# used by Qt and make the packaged app fail while importing QtCore.
+if os.name == "nt":
+    system32 = os.path.join(os.environ["SystemRoot"], "System32")
+    os.environ["PATH"] = os.pathsep.join([
+        system32, os.path.dirname(sys.executable), sys.base_prefix,
+        os.path.join(sys.base_prefix, "DLLs"),
+    ])
 
 ONEDIR = os.environ.get("VOLT_ONEDIR") == "1"
 

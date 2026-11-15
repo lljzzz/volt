@@ -2,6 +2,8 @@
 
 A small Windows app that rolls a bunch of everyday tools into one: an autoclicker, macros, a text expander, clipboard history, quick notes, text tools, screenshots, a color picker, keyboard cursor control and timers. It sits in the tray and you mostly use it through hotkeys or the quick palette (Ctrl+Alt+Space).
 
+![The Volt dashboard with the sidebar of tools, status cards and per-tool hotkey switches](https://lljzzz.github.io/img/dashboard.webp)
+
 ## What's in it
 
 **Automate**
@@ -12,7 +14,7 @@ A small Windows app that rolls a bunch of everyday tools into one: an autoclicke
 
 **Productivity**
 
-- Clipboard history with search, pins and 25 "copy as" transforms (case, Base64, JSON, hashes and so on). Copies from password managers are skipped.
+- Clipboard history with search, pins and 25 "copy as" transforms (case, Base64, JSON, hashes and so on). Copied images and screenshots are kept too, with thumbnails. Copies marked private by password managers are skipped by default.
 - Notes that save as you type.
 - Text tools: the same transforms, plus UUID, password and timestamp generators.
 - Timers, alarms and a stopwatch. Running timers survive a restart.
@@ -25,7 +27,15 @@ A small Windows app that rolls a bunch of everyday tools into one: an autoclicke
 
 The palette ties it together. Press Ctrl+Alt+Space in any app and start typing: run a macro, paste an old clipboard entry, start a timer (`timer 10m`), save a note (`note: call dentist`), do some math, snap a window to half the screen.
 
+<img src="https://lljzzz.github.io/img/palette-demo.png" width="620" alt="The quick palette: typing timer 10m offers a timer, 1299*0.24/12 shows 25.98, image lists copied images, note: buy milk adds a note, and snap lists window snap options">
+
 There's a dark and a light theme, or Volt can follow the Windows setting, and you can pick from five accent colors.
+
+![The Volt dashboard split down the middle, dark theme on the left and light theme on the right](https://lljzzz.github.io/img/themes.webp)
+
+Clipboard history keeps images as well as text. Pick one to see it full size, copy it back, save it as a PNG or float it on top of your other windows.
+
+![The Clipboard page in the light theme with a copied chart selected and shown in the preview, above text entries and a pinned color code](https://lljzzz.github.io/img/clipboard-light.webp)
 
 ## Download
 
@@ -73,7 +83,13 @@ You can change all of them. Settings has a table of every hotkey with clashes ma
 
 ## Your data
 
-Volt never connects to the internet. Everything is saved as JSON in `%APPDATA%\Volt` (or in the project folder when you run from source). If you want it all next to the exe, say on a USB stick, put an empty file named `portable` beside `Volt.exe`.
+Volt never connects to the internet. Settings, notes and clipboard text/metadata are saved as JSON in `%APPDATA%\Volt` (or in the project folder when you run from source). If you want it all next to the exe, say on a USB stick, put an empty file named `portable` beside `Volt.exe`; data then lives in the adjacent `VoltData` folder.
+
+Clipboard history stays in memory by default. Pinned images are saved as PNGs in `clipboard_images` inside the data folder. Turning on "Remember history across restarts" also saves unpinned history there; unpinned images larger than 12 MB remain in memory only. Up to 20 unpinned images are kept within a 48 MB PNG-data budget, subject to your overall history-size setting. Pins are kept separately. Screen captures and images you save manually go to the folder you choose.
+
+## Checking changes
+
+Run `python tests/harness.py` with the dependencies installed. It uses an offscreen Qt window, isolated temporary data and simulated input to check the app without changing your settings or sending real clicks and keystrokes. It prints the path to its screenshots and test data.
 
 ## A note on games
 

@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QFrame, QLabel, QLineEdit, QListWidget,
 
 from core import snippets as snip_mod
 from core import transforms, winman
+from core.clipboard import is_image
 from core.picker import calc
 from core.timers import fmt_remaining, parse_duration
 from ui.nudge import builtin_points
@@ -44,12 +45,12 @@ def _preview(text: str, n: int = 70) -> str:
 
 
 class _Item:
-    __slots__ = ("label", "hint", "fn", "kind", "glyph", "color", "text")
+    __slots__ = ("label", "hint", "fn", "kind", "glyph", "color", "text", "image")
 
-    def __init__(self, label, hint, fn, kind, glyph, color=None, text=None):
+    def __init__(self, label, hint, fn, kind, glyph, color=None, text=None, image=None):
         self.label, self.hint, self.fn = label, hint, fn
         self.kind, self.glyph, self.color = kind, glyph, color
-        self.text = text
+        self.text, self.image = text, image
 
 
 class Palette(QWidget):
@@ -198,6 +199,12 @@ class Palette(QWidget):
 
         if clip:
             for e in clip.entries[:MAX_CLIP_ITEMS]:
+                if is_image(e):
+                    add(_Item(f"Clipboard: image {e['w']} × {e['h']}",
+                              "pinned" if e.get("pinned") else "",
+                              lambda e=e: clip.copy_image(e), "Clipboard", "image",
+                              "accent" if e.get("pinned") else None, image=e))
+                    continue
                 add(_Item(f"Clipboard: {_preview(e['text'], 60)}",
                           "pinned" if e.get("pinned") else "",
                           copy_fn(e["text"]), "Clipboard",
@@ -339,7 +346,13 @@ class Palette(QWidget):
         ctrl = self.win.controller
         paste_on = self.win.config["settings"].get("palette_paste", True)
         try:
-            if item.text is not None and not copy_only and paste_on and self._target_hwnd:
+            if item.image is not None:
+                if not copy_only and paste_on and self._target_hwnd:
+                    ctrl.paste_image_into(self._target_hwnd, item.image)
+                else:
+                    item.fn()
+                    ctrl.toast.emit("Image copied")
+            elif item.text is not None and not copy_only and paste_on and self._target_hwnd:
                 ctrl.paste_into(self._target_hwnd, item.text)
             elif item.text is not None:
                 if ctrl.clipboard:

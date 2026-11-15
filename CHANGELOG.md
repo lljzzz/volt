@@ -2,10 +2,11 @@
 
 ## 0.8
 
-Mostly fixes, plus a light theme.
+Images in clipboard history, a light theme, and a lot of fixes.
 
 New
 
+- Clipboard history keeps copied images and screenshots, with thumbnails and a full-size preview. Copy them back, save them as PNG, or float one on top of other windows. Pinned images survive restarts. "Remember history" also saves unpinned images up to 12 MB each. Up to 20 unpinned images are kept within a 48 MB PNG-data budget and the overall history-size setting; pins are kept separately. You can turn images off in the clipboard settings.
 - Light theme, and a Match Windows option that follows the Windows app mode and switches when it does. There are five accent colors too. It's all under Settings, Appearance.
 - A Search button at the top of the sidebar opens the palette and shows its hotkey.
 - An optional hotkey to show or hide the Volt window. It's off until you set one in Settings.
@@ -16,6 +17,7 @@ New
 
 Fixed
 
+- Building with unrelated tools on PATH could bundle an incompatible ICU DLL and prevent the EXE from starting. Windows system DLLs now take precedence during dependency discovery.
 - Paste as plain text pasted an older clipboard entry, and put it back on the clipboard, when the current copy came from a password manager or wasn't text.
 - If the clipboard contained the text `{cursor}`, a snippet using `{clipboard}` moved the caret.
 - The snippet editor said the longest trigger wins when one trigger was the start of another, like `;d` and `;date`. Actually the shorter one fires first and the longer one never fires. The warning now says so.
