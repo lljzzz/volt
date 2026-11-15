@@ -1,6 +1,8 @@
 # Volt
 
-A small Windows app that rolls a bunch of everyday tools into one: an autoclicker, macros, a text expander, clipboard history, quick notes, text tools, screenshots, a color picker, keyboard cursor control and timers. It sits in the tray and you mostly use it through hotkeys or the quick palette (Ctrl+Alt+Space).
+Autoclicker, macros, clipboard history and everyday Windows tools in one app. Automate repeated clicks, turn short triggers into full messages, and retrieve text or images you copied earlier. Open a tool from the sidebar or press **Ctrl+Alt+Space** to search from any app.
+
+Free and open source, for Windows 10 and 11. No installer or account required. [See the demos and download Volt](https://lljzzz.github.io/).
 
 ![The Volt dashboard with the sidebar of tools, status cards and per-tool hotkey switches](https://lljzzz.github.io/img/dashboard.webp)
 
@@ -29,9 +31,9 @@ The palette ties it together. Press Ctrl+Alt+Space in any app and start typing: 
 
 <img src="https://lljzzz.github.io/img/palette-demo.png" width="620" alt="The quick palette: typing timer 10m offers a timer, 1299*0.24/12 shows 25.98, image lists copied images, note: buy milk adds a note, and snap lists window snap options">
 
-There's a dark and a light theme, or Volt can follow the Windows setting, and you can pick from five accent colors.
+Choose Dark or Light, or let Volt follow your Windows theme. Five accent colors are available in Settings → Appearance. [Try every combination on the website](https://lljzzz.github.io/#appearance).
 
-![The Volt dashboard split down the middle, dark theme on the left and light theme on the right](https://lljzzz.github.io/img/themes.webp)
+![Real Volt controls in Orange, Blue, Teal, Pink and Violet, with Dark and Light examples for each accent](https://lljzzz.github.io/img/accents.webp)
 
 Clipboard history keeps images as well as text. Pick one to see it full size, copy it back, save it as a PNG or float it on top of your other windows.
 
@@ -41,7 +43,9 @@ Clipboard history keeps images as well as text. Pick one to see it full size, co
 
 Get `Volt.exe` from the [releases page](https://github.com/lljzzz/volt/releases). It's one portable file with no installer, for Windows 10 or 11 (64-bit).
 
-The exe isn't code-signed, so SmartScreen will probably warn you the first time. Click More info, then Run anyway. Some antivirus tools also flag it because it simulates keyboard and mouse input, which is kind of the point of an autoclicker. Volt has no network code at all, and the source is right here if you want to check.
+Volt 0.8 is unsigned, so Windows may show an unknown-publisher or SmartScreen warning. See the [download notes](https://lljzzz.github.io/#windows-warning) for details. Each release includes a SHA-256 checksum.
+
+To update, quit Volt from its tray menu, replace `Volt.exe` and reopen it. Keep your data folder; in portable mode, also keep the `portable` marker and `VoltData` folder beside the EXE.
 
 ## Running from source
 
@@ -83,7 +87,7 @@ You can change all of them. Settings has a table of every hotkey with clashes ma
 
 ## Your data
 
-Volt never connects to the internet. Settings, notes and clipboard text/metadata are saved as JSON in `%APPDATA%\Volt` (or in the project folder when you run from source). If you want it all next to the exe, say on a USB stick, put an empty file named `portable` beside `Volt.exe`; data then lives in the adjacent `VoltData` folder.
+Your clipboard, notes and settings stay on your PC. Volt has no accounts, tracking or cloud sync. Settings, notes and clipboard text/metadata are saved as JSON in `%APPDATA%\Volt` (or in the project folder when you run from source). To keep data beside the EXE, put an empty file named `portable` there; Volt then uses the adjacent `VoltData` folder.
 
 Clipboard history stays in memory by default. Pinned images are saved as PNGs in `clipboard_images` inside the data folder. Turning on "Remember history across restarts" also saves unpinned history there; unpinned images larger than 12 MB remain in memory only. Up to 20 unpinned images are kept within a 48 MB PNG-data budget, subject to your overall history-size setting. Pins are kept separately. Screen captures and images you save manually go to the folder you choose.
 
