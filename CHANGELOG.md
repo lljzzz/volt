@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.8
+
+Mostly fixes, plus a light theme.
+
+New
+
+- Light theme, and a Match Windows option that follows the Windows app mode and switches when it does. There are five accent colors too. It's all under Settings, Appearance.
+- A Search button at the top of the sidebar opens the palette and shows its hotkey.
+- An optional hotkey to show or hide the Volt window. It's off until you set one in Settings.
+- New installs get a short welcome card on the Dashboard.
+- Export settings now includes your notes. Importing a backup adds its notes to the ones you have instead of replacing them.
+- Timer durations can have decimals (`1.5h`, `2.5m`), and automatic labels read like "1 h 30 min timer".
+- The autoclicker's "Only click in this window" box accepts typed text, so it can match part of a title.
+
+Fixed
+
+- Paste as plain text pasted an older clipboard entry, and put it back on the clipboard, when the current copy came from a password manager or wasn't text.
+- If the clipboard contained the text `{cursor}`, a snippet using `{clipboard}` moved the caret.
+- The snippet editor said the longest trigger wins when one trigger was the start of another, like `;d` and `;date`. Actually the shorter one fires first and the longer one never fires. The warning now says so.
+- Snapping a window to a half or a quarter of the screen left a gap of about 7 px at the sides and bottom on Windows 10 and 11.
+- Clicking the tray icon while Volt was in front didn't hide it.
+- The palette and the capture overlay could open without keyboard focus when the hotkey had no Alt in it.
+- Selecting another macro while recording put the recording into the wrong one.
+- A key that was already held when recording started left a stray key release in the macro.
+- If the window the autoclicker was locked to closed, the dropdown showed a different window than the saved one.
+- Empty notes piled up as "Untitled note". A blank note is now removed when you leave it.
+- A hand-edited config with a macro missing its name, hotkey or actions could crash Volt at startup. Broken entries are repaired when the config loads.
+- Long notices stretched across the screen. They wrap now.
+- The clipboard page said "1 entries".
+
+Under the hood
+
+- Running timers no longer restyle the Dashboard and Timers pages twice a second, the color picker grabs the screen once per update instead of twice, and the clipboard list only rebuilds while it's on screen.
+
 ## 0.7
 
 A big one: three new tools, a reworked UI and a long list of fixes.

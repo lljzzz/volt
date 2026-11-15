@@ -46,12 +46,17 @@ def render(text: str, clipboard_provider=None) -> str:
     return out
 
 
-def split_cursor(text: str) -> tuple[str, int]:
-    before, sep, after = text.partition("{cursor}")
+def expand(template: str, clipboard_provider=None) -> tuple[str, int]:
+    before, sep, after = template.partition("{cursor}")
+    head = render(before, clipboard_provider)
     if not sep:
-        return text, 0
-    after = after.replace("{cursor}", "")
-    return before + after, len(after)
+        return head, 0
+    tail = render(after.replace("{cursor}", ""), clipboard_provider)
+    return head + tail, len(tail)
+
+
+def blockers(trigger: str, others) -> list[str]:
+    return [o for o in others if o and o != trigger and o in trigger[:-1]]
 
 
 class SnippetEngine:
@@ -176,6 +181,7 @@ class SnippetEngine:
         for snip in self._active:
             if buf.endswith(snip["trigger"]):
                 self._reset()
+                self._injecting = True
                 threading.Thread(target=self._expand, args=(snip,),
                                  daemon=True).start()
                 break
@@ -190,7 +196,7 @@ class SnippetEngine:
         self._injecting = True
         try:
             trigger = snip["trigger"]
-            text, back = split_cursor(render(snip["text"], self.clipboard_provider))
+            text, back = expand(snip["text"], self.clipboard_provider)
             mode = self.insert_mode
             paste = mode == "paste" or (
                 mode == "auto" and ("\n" in text or len(text) > _PASTE_THRESHOLD))

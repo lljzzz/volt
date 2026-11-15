@@ -9,6 +9,15 @@ if IS_WINDOWS:
     from ctypes import wintypes
 
     user32 = ctypes.WinDLL("user32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    try:
+        dwmapi = ctypes.WinDLL("dwmapi")
+        dwmapi.DwmGetWindowAttribute.argtypes = (wintypes.HWND, wintypes.DWORD,
+                                                 ctypes.c_void_p, wintypes.DWORD)
+        dwmapi.DwmGetWindowAttribute.restype = ctypes.c_long
+    except OSError:
+        dwmapi = None
+    DWMWA_EXTENDED_FRAME_BOUNDS = 9
 
     SWP_NOSIZE = 0x0001
     SWP_NOMOVE = 0x0002
@@ -40,6 +49,11 @@ if IS_WINDOWS:
     user32.MonitorFromPoint.restype = wintypes.HMONITOR
     user32.GetMonitorInfoW.argtypes = (wintypes.HMONITOR, ctypes.POINTER(MONITORINFO))
     user32.GetCursorPos.argtypes = (ctypes.POINTER(wintypes.POINT),)
+    user32.GetWindowThreadProcessId.argtypes = (wintypes.HWND, ctypes.c_void_p)
+    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+    user32.AttachThreadInput.argtypes = (wintypes.DWORD, wintypes.DWORD, wintypes.BOOL)
+    user32.BringWindowToTop.argtypes = (wintypes.HWND,)
+    kernel32.GetCurrentThreadId.restype = wintypes.DWORD
 
 MIN_W, MIN_H = 140, 90
 SNAPS = [
@@ -75,11 +89,48 @@ def activate(hwnd: int) -> bool:
     return bool(user32.SetForegroundWindow(hwnd))
 
 
+def force_foreground(hwnd: int) -> bool:
+    if not IS_WINDOWS or not hwnd:
+        return False
+    try:
+        fg = user32.GetForegroundWindow() or 0
+        if fg == hwnd:
+            return True
+        me = kernel32.GetCurrentThreadId()
+        other = user32.GetWindowThreadProcessId(fg, None) if fg else 0
+        attached = bool(other and other != me
+                        and user32.AttachThreadInput(other, me, True))
+        try:
+            user32.BringWindowToTop(hwnd)
+            user32.SetForegroundWindow(hwnd)
+        finally:
+            if attached:
+                user32.AttachThreadInput(other, me, False)
+        return (user32.GetForegroundWindow() or 0) == hwnd
+    except Exception:
+        return False
+
+
 def _rect(hwnd):
     r = wintypes.RECT()
     if not user32.GetWindowRect(hwnd, ctypes.byref(r)):
         return None
     return r
+
+
+def _margins(hwnd) -> tuple[int, int, int, int]:
+    r = _rect(hwnd)
+    if r is None or dwmapi is None:
+        return 0, 0, 0, 0
+    f = wintypes.RECT()
+    try:
+        if dwmapi.DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS,
+                                        ctypes.byref(f), ctypes.sizeof(f)) != 0:
+            return 0, 0, 0, 0
+    except Exception:
+        return 0, 0, 0, 0
+    vals = (f.left - r.left, f.top - r.top, r.right - f.right, r.bottom - f.bottom)
+    return tuple(v if 0 <= v <= 40 else 0 for v in vals)
 
 
 def _monitor_info(hmon):
@@ -169,18 +220,20 @@ def snap(where: str, hwnd: int = 0):
         "bottom_left": (L, T + half_h, half_w, H - half_h),
         "bottom_right": (L + half_w, T + half_h, W - half_w, H - half_h),
     }
+    ml, mt, mr, mb = _margins(hwnd)
     if where == "center":
         r = _rect(hwnd)
         if not r:
             return
-        w, h = r.right - r.left, r.bottom - r.top
-        x, y = L + (W - w) // 2, T + (H - h) // 2
+        w = r.right - r.left - ml - mr
+        h = r.bottom - r.top - mt - mb
+        x, y = L + (W - w) // 2 - ml, T + (H - h) // 2 - mt
         user32.SetWindowPos(hwnd, 0, x, y, 0, 0,
                             SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE)
         return
     if where in rects:
         x, y, w, h = rects[where]
-        user32.SetWindowPos(hwnd, 0, x, y, w, h,
+        user32.SetWindowPos(hwnd, 0, x - ml, y - mt, w + ml + mr, h + mt + mb,
                             SWP_NOZORDER | SWP_NOACTIVATE)
 
 

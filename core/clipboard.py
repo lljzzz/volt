@@ -53,6 +53,14 @@ class ClipboardWatcher(QObject):
     def latest_text(self) -> str:
         return self._latest
 
+    def current_text(self) -> str:
+        if self._clipboard is None:
+            return ""
+        try:
+            return self._clipboard.text() or ""
+        except Exception:
+            return ""
+
     @property
     def enabled(self) -> bool:
         return bool(self.cfg.get("enabled", True))
@@ -65,7 +73,12 @@ class ClipboardWatcher(QObject):
         self._mute_until = time.monotonic() + seconds
 
     def _is_private(self) -> bool:
-        if not self.cfg.get("ignore_sensitive", True) or self._clipboard is None:
+        if not self.cfg.get("ignore_sensitive", True):
+            return False
+        return self.flagged_private()
+
+    def flagged_private(self) -> bool:
+        if self._clipboard is None:
             return False
         try:
             md = self._clipboard.mimeData()

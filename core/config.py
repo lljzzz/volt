@@ -1,11 +1,13 @@
 import copy
 import json
 import os
+import re
 import sys
 import time
+import uuid
 
 APP_NAME = "Volt"
-CONFIG_VERSION = 2
+CONFIG_VERSION = 3
 
 
 def _base_dir() -> str:
@@ -55,9 +57,12 @@ DEFAULTS = {
         "keep_awake": False,
         "suppress_hotkeys": True,
         "palette_hotkey": ["ctrl", "alt", "space"],
+        "window_hotkey": [],
         "palette_paste": True,
         "palette_recent": [],
-        "dark_mode": True,
+        "theme": "dark",
+        "accent": "orange",
+        "welcome_done": False,
         "panic_hotkey": ["ctrl", "shift", "m"],
         "macros_armed": True,
         "rec_moves": False,
@@ -180,12 +185,89 @@ def _merge(base: dict, override: dict) -> dict:
     return out
 
 
-def _migrate(cfg: dict) -> dict:
+def _migrate(cfg: dict, raw: dict | None = None) -> dict:
     ver = cfg.get("config_version", 1)
-    if ver < 2:
-        pass
+    if ver < 3:
+        cfg["settings"].pop("dark_mode", None)
+        old = raw.get("settings") if isinstance(raw, dict) else None
+        if isinstance(old, dict) and "welcome_done" not in old:
+            cfg["settings"]["welcome_done"] = True
     cfg["config_version"] = CONFIG_VERSION
+    _sanitize(cfg)
     return cfg
+
+
+def _new_id() -> str:
+    return uuid.uuid4().hex[:8]
+
+
+def _int(v, default=0) -> int:
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def _records(items, fix) -> list:
+    out, seen = [], set()
+    for it in items if isinstance(items, list) else []:
+        if not isinstance(it, dict):
+            continue
+        fix(it)
+        if "id" in it:
+            it["id"] = str(it["id"] or _new_id())
+            if it["id"] in seen:
+                it["id"] = _new_id()
+            seen.add(it["id"])
+        out.append(it)
+    return out
+
+
+def _fix_macro(m):
+    m.setdefault("id", _new_id())
+    if not isinstance(m.get("name"), str):
+        m["name"] = "Macro"
+    if not isinstance(m.get("hotkey"), list):
+        m["hotkey"] = []
+    acts = m.get("actions")
+    if not isinstance(acts, list):
+        acts = []
+    m["actions"] = [a for a in acts if isinstance(a, dict) and a.get("type")]
+
+
+def _fix_snippet(sn):
+    sn.setdefault("id", _new_id())
+    for key in ("trigger", "text"):
+        if not isinstance(sn.get(key), str):
+            sn[key] = ""
+
+
+def _fix_anchor(a):
+    a.setdefault("id", _new_id())
+    if not isinstance(a.get("name"), str) or not a["name"].strip():
+        a["name"] = "Anchor"
+    a["x"], a["y"] = _int(a.get("x")), _int(a.get("y"))
+    if not isinstance(a.get("hotkey"), list):
+        a["hotkey"] = []
+
+
+def _fix_point(p):
+    p["x"], p["y"] = _int(p.get("x")), _int(p.get("y"))
+
+
+def _sanitize(cfg: dict):
+    cfg["macros"] = _records(cfg.get("macros"), _fix_macro)
+    sn = cfg["snippets"]
+    sn["items"] = _records(sn.get("items"), _fix_snippet)
+    nd = cfg["nudge"]
+    nd["anchors"] = _records(nd.get("anchors"), _fix_anchor)
+    ac = cfg["autoclicker"]
+    ac["sequence_points"] = _records(ac.get("sequence_points"), _fix_point)
+    hist = cfg["picker"].get("history")
+    if not isinstance(hist, list):
+        hist = []
+    cfg["picker"]["history"] = [h for h in hist if isinstance(h, str)
+                                and re.fullmatch(r"#[0-9a-fA-F]{6}", h)]
 
 
 def _migrate_legacy():
@@ -261,7 +343,7 @@ def load() -> dict:
         cfg["config_version"] = 1
         if "palette_hotkey" not in data.get("settings", {}):
             cfg["settings"]["palette_hotkey"] = ["ctrl", "shift", "p"]
-    return _migrate(cfg)
+    return _migrate(cfg, data if isinstance(data, dict) else None)
 
 
 def save(data: dict) -> bool:

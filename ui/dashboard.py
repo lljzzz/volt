@@ -4,10 +4,8 @@ from PySide6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QLabel,
 
 from core.hotkeys import combo_to_text
 from core.timers import fmt_remaining
-from . import icons
-from .styles import ACCENT, GREEN
-from .widgets import (Card, StatTile, ToggleSwitch, button, page_header,
-                      repolish, small_label)
+from .widgets import (Card, StatTile, ToggleSwitch, button, hint, page_header,
+                      repolish, set_glyph, small_label)
 
 
 class DashboardPage(QWidget):
@@ -30,6 +28,9 @@ class DashboardPage(QWidget):
                       tip="Stops the clicker and every running macro")
         right.addWidget(stop)
         root.addLayout(head)
+
+        self.welcome = self._welcome_card()
+        root.addWidget(self.welcome)
 
         grid = QGridLayout()
         grid.setSpacing(12)
@@ -119,6 +120,52 @@ class DashboardPage(QWidget):
             controller.notes.changed.connect(self._refresh_tiles)
         self._clicks = 0
 
+    def _welcome_card(self):
+        card = QFrame(objectName="Welcome")
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(18, 15, 18, 15)
+        lay.setSpacing(8)
+        title = QLabel("Welcome to Volt", objectName="CardTitle")
+        lay.addWidget(title)
+        self.welcome_text = hint("")
+        lay.addWidget(self.welcome_text)
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        row.addWidget(button("Open the palette", "Primary", self._open_palette,
+                             icon_name="search"))
+        row.addWidget(button("Settings", "Ghost", lambda: self.navigate("Settings")))
+        row.addStretch()
+        row.addWidget(button("Got it", "Ghost", self._dismiss_welcome))
+        lay.addLayout(row)
+        return card
+
+    def _open_palette(self):
+        win = self.window()
+        if hasattr(win, "palette"):
+            win.palette.open()
+
+    def _dismiss_welcome(self):
+        self.ctrl.config["settings"]["welcome_done"] = True
+        self.on_change()
+        self.welcome.setVisible(False)
+
+    def _refresh_welcome(self):
+        s = self.ctrl.config["settings"]
+        show = not s.get("welcome_done", False)
+        self.welcome.setVisible(show)
+        if not show:
+            return
+        pal = s.get("palette_hotkey") or []
+        panic = s.get("panic_hotkey") or []
+        bits = ["Volt lives in the tray and works through global hotkeys, so you "
+                "can close this window and keep using it."]
+        if pal:
+            bits.append(f"Press {combo_to_text(pal)} in any app to search and run "
+                        "everything: macros, snippets, clipboard history, timers, math.")
+        if panic:
+            bits.append(f"{combo_to_text(panic)} stops every clicker and macro at once.")
+        self.welcome_text.setText(" ".join(bits))
+
     def refresh(self):
         panic = self.ctrl.config["settings"].get("panic_hotkey", [])
         pal = self.ctrl.config["settings"].get("palette_hotkey", [])
@@ -128,6 +175,7 @@ class DashboardPage(QWidget):
         if pal:
             bits.append(f"Palette: {combo_to_text(pal)}")
         self.subtitle.setText("   ·   ".join(bits))
+        self._refresh_welcome()
         for sw, get_fn in self._qc_switches:
             sw.setChecked(get_fn())
         self._rebuild_macros()
@@ -146,17 +194,17 @@ class DashboardPage(QWidget):
         if not ac.get("armed", True):
             hk += " (disarmed)"
         self.t_click.set("Running" if running else "Idle",
-                         f"{rate} · {hk}", GREEN if running else None)
-        self.t_click.value.setStyleSheet(f"color:{GREEN};" if running else "")
+                         f"{rate} · {hk}", "green" if running else "", running)
         self.click_btn.setText("Stop" if running else "Start")
-        repolish(self.click_btn, "Running" if running else "Primary")
+        if self.click_btn.objectName() != ("Running" if running else "Primary"):
+            repolish(self.click_btn, "Running" if running else "Primary")
 
         macros = c.config["macros"]
         n_run = c.running_macros()
         self.t_macros.set(f"{n_run} running" if n_run else f"{len(macros)}",
                           "running now" if n_run else
                           ("macros saved" if len(macros) != 1 else "macro saved"),
-                          GREEN if n_run else None)
+                          "green" if n_run else "")
 
         sn = c.config["snippets"]
         active = sum(1 for s in sn.get("items", []) if s.get("enabled", True))
@@ -164,7 +212,7 @@ class DashboardPage(QWidget):
         state = "on" if sn.get("enabled", True) else "off"
         self.t_snips.set(f"{active}", f"active · engine {state}"
                          + (f" · {fired} expanded" if fired else ""),
-                         ACCENT if sn.get("enabled", True) else None)
+                         "accent" if sn.get("enabled", True) else "")
 
         cw = c.clipboard
         if cw:
@@ -185,7 +233,7 @@ class DashboardPage(QWidget):
         if live:
             nxt = min(live, key=tm.remaining)
             self.t_timers.set(fmt_remaining(tm.remaining(nxt)),
-                              f"{nxt['label']} · {len(tm.items)} running", ACCENT)
+                              f"{nxt['label']} · {len(tm.items)} running", "accent")
         else:
             self.t_timers.set(f"{len(tm.items)}" if tm.items else "None",
                               "paused" if tm.items else "no timers running")
@@ -240,9 +288,9 @@ class DashboardPage(QWidget):
     @staticmethod
     def _style_run(btn, running):
         btn.setText("Stop" if running else "Run")
-        btn.setIcon(icons.icon("stop" if running else "play",
-                               "#06140b" if running else "#1a0f08", 12))
-        repolish(btn, "Running" if running else "Primary")
+        btn.setObjectName("Running" if running else "Primary")
+        set_glyph(btn, "stop" if running else "play", 12)
+        repolish(btn)
 
     def _qc_toggle(self, set_fn, value):
         set_fn(value)

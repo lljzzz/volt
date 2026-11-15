@@ -115,13 +115,19 @@ class CapturePage(QWidget):
 
     def _recent_files(self) -> list[str]:
         folder = self.tool.folder()
+        found = []
         try:
-            files = [os.path.join(folder, f) for f in os.listdir(folder)
-                     if f.lower().endswith(".png")]
+            with os.scandir(folder) as it:
+                for entry in it:
+                    if entry.name.lower().endswith(".png"):
+                        try:
+                            found.append((entry.stat().st_mtime, entry.path))
+                        except OSError:
+                            continue
         except OSError:
             return []
-        files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
-        return files[:RECENT]
+        found.sort(reverse=True)
+        return [path for _t, path in found[:RECENT]]
 
     def refresh_recent(self):
         if not self.isVisible():

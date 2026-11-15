@@ -24,6 +24,7 @@ class Controller(QObject):
     palette_requested = Signal()
     pick_requested = Signal()
     capture_requested = Signal()
+    window_requested = Signal()
     seq_point = Signal(int, int)
     seq_record_state = Signal(bool)
     paste_plain_requested = Signal()
@@ -93,6 +94,9 @@ class Controller(QObject):
         self.hotkeys.register(
             "palette", s.get("palette_hotkey", []),
             "toggle", on_activate=lambda: self.palette_requested.emit())
+        self.hotkeys.register(
+            "window", s.get("window_hotkey", []),
+            "toggle", on_activate=lambda: self.window_requested.emit())
         n = self.config.get("nudge", {})
         mods = [m for m in n.get("modifiers", []) if m]
         dirs = {"up": (0, -1), "down": (0, 1), "left": (-1, 0), "right": (1, 0)}
@@ -167,7 +171,8 @@ class Controller(QObject):
 
     def hotkey_label(self, hid: str) -> str:
         fixed = {"clicker": "Autoclicker", "panic": "Panic stop",
-                 "palette": "Quick palette", "paste_plain": "Paste as plain text",
+                 "palette": "Quick palette", "window": "Show or hide Volt",
+                 "paste_plain": "Paste as plain text",
                  "picker": "Color picker", "capture": "Screen capture",
                  "seqrec_add": "Sequence recorder", "seqrec_done": "Sequence recorder"}
         if hid in fixed:
@@ -276,10 +281,12 @@ class Controller(QObject):
     def paste_plain(self):
         if self.clipboard is None:
             return
-        text = self.clipboard.latest_text()
+        text = self.clipboard.current_text()
         if not text:
+            self.toast.emit("Nothing to paste: the clipboard has no text")
             return
-        self.clipboard.copy(text)
+        if not self.clipboard.flagged_private():
+            self.clipboard.copy(text)
 
         def send():
             time.sleep(0.05)

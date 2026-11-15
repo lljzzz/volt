@@ -10,7 +10,6 @@ from core import transforms, winman
 from core.picker import calc
 from core.timers import fmt_remaining, parse_duration
 from ui.nudge import builtin_points
-from .styles import ACCENT, GREEN
 from .widgets import rich_list, set_item
 
 MAX_CLIP_ITEMS = 15
@@ -108,6 +107,7 @@ class Palette(QWidget):
                   g.y() + int(g.height() * 0.18))
         self.show()
         self.raise_()
+        winman.force_foreground(int(self.winId()))
         self.activateWindow()
         self.input.setFocus()
 
@@ -151,7 +151,8 @@ class Palette(QWidget):
 
         ac_on = ctrl.clicker.running
         add(_Item(f"{'Stop' if ac_on else 'Start'} autoclicker", "toggle the clicker",
-                  ctrl.toggle_clicker, "Action", "autoclicker", GREEN if ac_on else None))
+                  ctrl.toggle_clicker, "Action", "autoclicker",
+                  "green" if ac_on else None))
         add(_Item("Stop everything", "clicker + all macros", ctrl.stop_everything,
                   "Action", "stop"))
         add(_Item("Capture screen region", "drag to select · copies + saves",
@@ -185,13 +186,13 @@ class Palette(QWidget):
             add(_Item(f"{'Stop' if running else 'Run'} macro: {m['name']}",
                       f"{len(m.get('actions', []))} actions",
                       lambda mid=mid: ctrl.toggle_macro(mid), "Macro",
-                      "stop" if running else "macros", GREEN if running else ACCENT))
+                      "stop" if running else "macros", "green" if running else "accent"))
 
         provider = clip.latest_text if clip else None
         for s in cfg["snippets"].get("items", []):
             if not s.get("text"):
                 continue
-            text, _back = snip_mod.split_cursor(snip_mod.render(s["text"], provider))
+            text, _back = snip_mod.expand(s["text"], provider)
             add(_Item(f"Snippet: {s.get('trigger', '?')}", _preview(s["text"]),
                       copy_fn(text), "Snippet", "snippets", text=text))
 
@@ -201,7 +202,7 @@ class Palette(QWidget):
                           "pinned" if e.get("pinned") else "",
                           copy_fn(e["text"]), "Clipboard",
                           "pinned" if e.get("pinned") else "clipboard",
-                          ACCENT if e.get("pinned") else None, text=e["text"]))
+                          "accent" if e.get("pinned") else None, text=e["text"]))
             latest = clip.latest_text()
             if latest and len(latest) <= 200_000:
                 for _key, label, fn, _group in transforms.TRANSFORMS:
@@ -216,7 +217,7 @@ class Palette(QWidget):
                 add(_Item(f"Note: {title}", "open in Volt",
                           lambda nid=n["id"]: (w.restore(), w.navigate("Notes"),
                                                w.pages["Notes"].open_note(nid)),
-                          "Note", "notes", ACCENT if n["pinned"] else None))
+                          "Note", "notes", "accent" if n["pinned"] else None))
                 add(_Item(f"Copy note: {title}", _preview(n["text"], 50),
                           copy_fn(n["text"]), "Note", "copy", text=n["text"]))
 
@@ -234,7 +235,8 @@ class Palette(QWidget):
             for t in list(tm.items):
                 add(_Item(f"Cancel timer: {t['label']}",
                           f"{fmt_remaining(tm.remaining(t))} left",
-                          lambda tid=t["id"]: tm.cancel(tid), "Timer", "timers", ACCENT))
+                          lambda tid=t["id"]: tm.cancel(tid), "Timer", "timers",
+                          "accent"))
 
         for hx in cfg.get("picker", {}).get("history", [])[:8]:
             add(_Item(f"Color {hx}", "recent pick", copy_fn(hx), "Color",
@@ -256,19 +258,20 @@ class Palette(QWidget):
         if result is not None:
             out.append(_Item(f"=  {result}", "Enter pastes · Shift+Enter copies",
                              lambda r=result: self._copy(r), "Calculator", "calc",
-                             ACCENT, text=result))
+                             "accent", text=result))
         m = re.match(r"^(?:note|n)\s*:\s*(.+)$", t, re.I)
         if m:
             body = m.group(1).strip()
             out.append(_Item(f"Add note: {_preview(body, 60)}", "saved to Notes",
-                             lambda b=body: self._add_note(b), "Notes", "add", ACCENT))
+                             lambda b=body: self._add_note(b), "Notes", "add",
+                             "accent"))
         m = re.match(r"^(?:timer|t)\s+(.+)$", t, re.I)
         dur_text = m.group(1) if m else t
         secs = parse_duration(dur_text) if (m or re.search(r"[hms:]", t)) else None
         if secs and len(t) <= 20:
             out.append(_Item(f"Start timer: {fmt_remaining(secs)}", "notification when done",
                              lambda s=secs: self.win.timers.start(s), "Timer",
-                             "timers", ACCENT))
+                             "timers", "accent"))
         return out
 
     def _recent_rank(self) -> dict[str, int]:

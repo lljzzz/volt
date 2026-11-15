@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox,
 from core import macro as macro_mod
 from core.hotkeys import combo_to_text
 from .hotkey_button import HotkeyButton
-from .styles import ACCENT, GREEN
 from .widgets import (Card, Segmented, ToggleSwitch, button, confirm, flow_row,
                       page_header, pair, repolish, rich_list, set_item,
                       small_label)
@@ -105,6 +104,7 @@ class MacroPage(QWidget):
         self.on_change = on_change
         self.current_id = None
         self._recording = False
+        self._rec_target = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(26, 22, 26, 26)
@@ -248,8 +248,8 @@ class MacroPage(QWidget):
             set_item(it, m["name"] or "Untitled",
                      f"{hk} · {len(m.get('actions', []))} actions",
                      glyph="play" if running else "macros",
-                     color=GREEN if running else (ACCENT if m.get("enabled", True)
-                                                  else None),
+                     color="green" if running else ("accent" if m.get("enabled", True)
+                                                    else None),
                      dim=not m.get("enabled", True))
             it.setData(Qt.UserRole, m["id"])
             self.macro_list.addItem(it)
@@ -562,6 +562,7 @@ class MacroPage(QWidget):
             self.ctrl.stop_recording(trim_click=True)
             return
         self._recording = True
+        self._rec_target = self.current_id
         self.rec_btn.setText(f"Stop ({STOP_KEY.upper()})")
         repolish(self.rec_btn, "Danger")
         self.rec_hint.setVisible(True)
@@ -578,12 +579,14 @@ class MacroPage(QWidget):
         self.rec_btn.setText("Record")
         repolish(self.rec_btn, "Ghost")
         self.rec_hint.setVisible(False)
-        m = self._macro()
+        m = self.ctrl.get_macro(self._rec_target) if self._rec_target else None
+        self._rec_target = None
         if m and actions:
             m["actions"].extend(actions)
             self.on_change()
-            self._refresh_table()
-            self.ctrl.toast.emit(f"Recorded {len(actions)} actions")
+            if m["id"] == self.current_id:
+                self._refresh_table()
+            self.ctrl.toast.emit(f"Recorded {len(actions)} actions into '{m['name']}'")
         self._reload_list()
 
     def _test(self):

@@ -2,20 +2,22 @@ import os
 import sys
 import time
 
-from PySide6.QtCore import QProcess, QRect, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QGuiApplication, QIcon, QKeySequence, QPainter, QPixmap, QShortcut
+from PySide6.QtCore import QEvent, QProcess, QRect, QRectF, Qt, QTimer
+from PySide6.QtGui import (QColor, QGuiApplication, QIcon, QKeySequence, QPainter,
+                           QPixmap, QShortcut)
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QFrame, QHBoxLayout,
                                QLabel, QMenu, QPushButton, QScrollArea,
                                QStackedWidget, QSystemTrayIcon, QVBoxLayout,
                                QWidget)
 
 from core import config as cfg_store
-from core import instance
+from core import instance, winman
 from core.clipboard import ClipboardWatcher
 from core.controller import Controller
+from core.hotkeys import combo_to_text
 from core.notes import NotesStore
 from core.timers import TimerManager
-from ui import icons
+from ui import icons, styles
 from ui.autoclicker import AutoclickerPage
 from ui.capture import CaptureTool
 from ui.capturepage import CapturePage
@@ -29,12 +31,12 @@ from ui.palette import Palette
 from ui.picker import PickerPage
 from ui.settings import SettingsPage
 from ui.snippets import SnippetsPage
-from ui.styles import ACCENT, ACCENT_INK, GREEN, QSS
+from ui.styles import T
 from ui.textpage import TextPage
 from ui.timers import TimersPage
-from ui.widgets import NavButton, Toast
+from ui.widgets import NavButton, SearchButton, Toast, refresh_glyphs
 
-VERSION = "0.7"
+VERSION = "0.8"
 APP_TITLE = "Volt"
 
 SECTIONS = [
@@ -48,7 +50,8 @@ SECTIONS = [
 NAV = [e for _s, entries in SECTIONS for e in entries] + [("Settings", "settings")]
 
 
-def make_icon(bg: str = ACCENT) -> QIcon:
+def make_icon(bg: str | None = None, ink: str | None = None) -> QIcon:
+    bg = bg or T.accent
     ic = QIcon()
     for size in (16, 20, 24, 32, 48, 64):
         pm = QPixmap(size, size)
@@ -59,7 +62,7 @@ def make_icon(bg: str = ACCENT) -> QIcon:
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(bg))
         p.drawRoundedRect(QRectF(0.5, 0.5, size - 1, size - 1), size * 0.26, size * 0.26)
-        p.setPen(QColor(ACCENT_INK))
+        p.setPen(QColor(ink or T.accent_ink))
         if icons.family():
             p.setFont(icons.font(int(size * 0.62)))
             p.drawText(pm.rect(), Qt.AlignCenter, icons.glyph("bolt"))
@@ -158,6 +161,9 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.config = cfg_store.load()
+        self._theme_key = None
+        self._deactivated_at = 0.0
+        self.apply_theme(initial=True)
         self._quitting = False
         self._max = False
         self._normal_geo = None
@@ -255,6 +261,7 @@ class MainWindow(QWidget):
         ctl.paste_plain_requested.connect(ctl.paste_plain)
         ctl.pick_requested.connect(self._on_pick)
         ctl.capture_requested.connect(lambda: self.capture_tool.start("region"))
+        ctl.window_requested.connect(self.toggle_visible)
         ctl.clicker_state.connect(lambda _r: self._status_changed())
         ctl.macro_state.connect(lambda *_: self._status_changed())
         self.timers.updated.connect(self._status_changed)
@@ -274,18 +281,28 @@ class MainWindow(QWidget):
         self._activate_msg = instance.activate_message()
         instance.mark_window(int(self.winId()))
         self._apply_native_styles()
+        try:
+            QGuiApplication.styleHints().colorSchemeChanged.connect(
+                lambda *_: self._system_theme_changed())
+        except AttributeError:
+            pass
         self.timers.restore()
         self._status_changed()
+        self.sync_search_keys()
         if cfg_store.LOAD_WARNING:
             QTimer.singleShot(1200, lambda: self.tray.showMessage(
                 APP_TITLE, cfg_store.LOAD_WARNING, QSystemTrayIcon.Warning, 10000))
 
     def _sidebar(self):
         bar = QWidget(objectName="Sidebar")
-        bar.setFixedWidth(178)
+        bar.setFixedWidth(184)
         lay = QVBoxLayout(bar)
         lay.setContentsMargins(10, 12, 10, 12)
         lay.setSpacing(2)
+        self.search_btn = SearchButton()
+        self.search_btn.clicked.connect(lambda: self.palette.open())
+        lay.addWidget(self.search_btn)
+        lay.addSpacing(4)
         self._nav_group = QButtonGroup(self)
         self._nav_group.setExclusive(True)
         self._nav_btns = {}
@@ -306,10 +323,42 @@ class MainWindow(QWidget):
                 add(name, icon_name, f"Ctrl+{idx}" if idx <= 9 else "")
         lay.addStretch()
         add("Settings", "settings", "Ctrl+0")
-        ver = QLabel(f"v{VERSION}", objectName="Muted")
-        ver.setStyleSheet("font-size:11px; padding: 6px 12px 0 12px;")
-        lay.addWidget(ver)
+        lay.addWidget(QLabel(f"v{VERSION}", objectName="SideVersion"))
         return bar
+
+    def sync_search_keys(self):
+        combo = self.config["settings"].get("palette_hotkey") or []
+        self.search_btn.set_keys(combo_to_text(combo).replace(" + ", "+") if combo else "")
+
+    def theme_name(self) -> str:
+        theme = self.config["settings"].get("theme", "dark")
+        return styles.system_theme() if theme == "system" else theme
+
+    def apply_theme(self, initial=False):
+        key = (self.theme_name(), self.config["settings"].get("accent", "orange"))
+        if key == self._theme_key:
+            return
+        self._theme_key = key
+        styles.set_theme(*key)
+        QApplication.instance().setStyleSheet(styles.qss())
+        if initial:
+            return
+        refresh_glyphs()
+        self._icon_idle = make_icon(T.accent)
+        self._icon_busy = make_icon(T.green, T.running_ink)
+        self.setWindowIcon(self._icon_idle)
+        self._tray_tip = None
+        self._status_changed()
+        current = self.stack.currentWidget()
+        for name, wrap in self._wrappers.items():
+            if wrap is current and hasattr(self.pages[name], "sync"):
+                self.pages[name].sync()
+        for w in QApplication.topLevelWidgets():
+            w.update()
+
+    def _system_theme_changed(self):
+        if self.config["settings"].get("theme") == "system":
+            self.apply_theme()
 
     def navigate(self, name):
         page = self.pages.get(name)
@@ -343,7 +392,7 @@ class MainWindow(QWidget):
         n = c.running_macros()
         self._nav_btns["Macros"].set_badge(str(n) if n else None)
         t = len(self.timers.items)
-        self._nav_btns["Timers"].set_badge(str(t) if t else None, ACCENT)
+        self._nav_btns["Timers"].set_badge(str(t) if t else None, "accent")
         busy = []
         if running:
             busy.append("clicker running")
@@ -517,18 +566,25 @@ class MainWindow(QWidget):
         if self.isMinimized() or not self.isVisible():
             self.showNormal()
         self.raise_()
+        winman.force_foreground(int(self.winId()))
         self.activateWindow()
 
+    def changeEvent(self, e):
+        if e.type() == QEvent.ActivationChange and not self.isActiveWindow():
+            self._deactivated_at = time.monotonic()
+        super().changeEvent(e)
+
     def toggle_visible(self):
-        if self.isVisible() and self.isActiveWindow() and not self.isMinimized():
+        active = self.isActiveWindow() or time.monotonic() - self._deactivated_at < 0.8
+        if self.isVisible() and active and not self.isMinimized():
             self._remember_geometry()
             self.hide()
         else:
             self.restore()
 
     def _build_tray(self):
-        self._icon_idle = make_icon(ACCENT)
-        self._icon_busy = make_icon(GREEN)
+        self._icon_idle = make_icon(T.accent)
+        self._icon_busy = make_icon(T.green, T.running_ink)
         self.tray = QSystemTrayIcon(self._icon_idle, self)
         self.tray.setToolTip(APP_TITLE)
         menu = QMenu()
@@ -556,7 +612,6 @@ class MainWindow(QWidget):
         self.tray.show()
 
     def _sync_tray_menu(self):
-        from core.hotkeys import combo_to_text
         s = self.config["settings"]
         pal = s.get("palette_hotkey")
         self.tray_palette.setText(f"Quick palette\t{combo_to_text(pal)}" if pal
@@ -690,7 +745,6 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName(APP_TITLE)
     app.setQuitOnLastWindowClosed(False)
-    app.setStyleSheet(QSS)
     win = MainWindow()
     hidden = ("--startup" in sys.argv or "--minimized" in sys.argv
               or win.config["settings"].get("start_minimized"))

@@ -2,6 +2,8 @@ from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import (QColor, QFont, QFontDatabase, QGuiApplication,
                            QIcon, QPainter, QPixmap)
 
+from .styles import T
+
 _GLYPHS = {
     "dashboard": ("\uECA5", "◈"),
     "autoclicker": ("\uE962", "⊙"),
@@ -94,11 +96,11 @@ def pixmap(name: str, color: str, px: int = 16) -> QPixmap:
     return pm
 
 
-def icon(name: str, color: str = "#c9ccd1", px: int = 16,
+def icon(name: str, color: str | None = None, px: int = 16,
          on_color: str | None = None) -> QIcon:
     ic = QIcon()
-    ic.addPixmap(pixmap(name, color, px), QIcon.Normal, QIcon.Off)
+    ic.addPixmap(pixmap(name, color or T.icon, px), QIcon.Normal, QIcon.Off)
     if on_color:
         ic.addPixmap(pixmap(name, on_color, px), QIcon.Normal, QIcon.On)
-    ic.addPixmap(pixmap(name, "#55585e", px), QIcon.Disabled, QIcon.Off)
+    ic.addPixmap(pixmap(name, T.icon_off, px), QIcon.Disabled, QIcon.Off)
     return ic

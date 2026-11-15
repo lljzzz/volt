@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (QAbstractItemView, QHBoxLayout,
 
 from core import transforms
 from .hotkey_button import HotkeyButton
-from .styles import ACCENT
 from .widgets import (Card, ToggleSwitch, button, confirm, flow_row,
                       page_header, rich_list, set_item, small_label)
 
@@ -34,6 +33,7 @@ class ClipboardPage(QWidget):
         self.watch = controller.clipboard
         self.on_change = on_change
         self._shown: list[dict] = []
+        self._dirty = False
 
         root = QVBoxLayout(self)
         root.setContentsMargins(26, 22, 26, 26)
@@ -114,7 +114,7 @@ class ClipboardPage(QWidget):
         down.activated.connect(lambda: (self.list.setFocus(),
                                         self.list.setCurrentRow(0)))
 
-        self.watch.changed.connect(self._refresh)
+        self.watch.changed.connect(self._watch_changed)
         self._refresh()
         self._selection_changed(None)
 
@@ -158,6 +158,17 @@ class ClipboardPage(QWidget):
         self.master_sw.setChecked(self.watch.enabled)
         self._refresh()
 
+    def _watch_changed(self):
+        if self.isVisible():
+            self._refresh()
+        else:
+            self._dirty = True
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if self._dirty:
+            self._refresh()
+
     def _entry(self, item) -> dict | None:
         if item is None:
             return None
@@ -167,6 +178,7 @@ class ClipboardPage(QWidget):
         return self._shown[idx]
 
     def _refresh(self, *_):
+        self._dirty = False
         query = self.search.text().lower().strip()
         selected = self._entry(self.list.currentItem())
         self.list.blockSignals(True)
@@ -175,14 +187,14 @@ class ClipboardPage(QWidget):
         for e in self.watch.entries:
             if query and query not in e["text"].lower():
                 continue
-            preview = " ".join(e["text"].split())[:300]
+            preview = " ".join(e["text"][:2000].split())[:300]
             lines = e["text"].count("\n") + 1
             meta = f"{len(e['text']):,} chars" + (f" · {lines} lines" if lines > 1 else "")
             age = "pinned" if e["pinned"] else _age(e["ts"])
             it = QListWidgetItem()
             set_item(it, preview or "(whitespace)", meta,
                      glyph="pinned" if e["pinned"] else "clipboard",
-                     color=ACCENT if e["pinned"] else None, right=age)
+                     color="accent" if e["pinned"] else None, right=age)
             it.setData(Qt.UserRole, len(self._shown))
             self._shown.append(e)
             self.list.addItem(it)
@@ -191,7 +203,7 @@ class ClipboardPage(QWidget):
         self.list.blockSignals(False)
         total = len(self.watch.entries)
         self.count_lbl.setText(f"{len(self._shown)} of {total}" if query else
-                               f"{total} entries")
+                               f"{total} entr{'y' if total == 1 else 'ies'}")
         if not self._shown:
             it = QListWidgetItem()
             set_item(it, "Nothing here yet" if not total else "No matches",

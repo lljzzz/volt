@@ -5,7 +5,8 @@ from PySide6.QtCore import QObject, QPoint, QRect, QStandardPaths, Qt, QTimer, S
 from PySide6.QtGui import QColor, QCursor, QFont, QGuiApplication, QPainter, QPen
 from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QWidget
 
-from .styles import ACCENT
+from core import winman
+from .styles import T
 
 
 def default_folder() -> str:
@@ -29,8 +30,10 @@ class _Overlay(QWidget):
 
     def showEvent(self, e):
         super().showEvent(e)
-        self.activateWindow()
         self.raise_()
+        if self.geometry().contains(QCursor.pos()):
+            winman.force_foreground(int(self.winId()))
+        self.activateWindow()
         self.setFocus()
 
     def _phys(self, r: QRect) -> QRect:
@@ -49,7 +52,7 @@ class _Overlay(QWidget):
         if not self._sel.isNull():
             sel = self._sel.normalized()
             p.drawPixmap(sel, self.pm, self._phys(sel))
-            p.setPen(QPen(QColor(ACCENT), 1))
+            p.setPen(QPen(QColor(T.accent), 1))
             p.drawRect(sel.adjusted(0, 0, -1, -1))
             phys = self._phys(sel)
             label = f"{phys.width()} × {phys.height()}"
@@ -132,7 +135,7 @@ class PinWindow(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         p.drawPixmap(self.rect(), self.pm)
-        p.setPen(QPen(QColor(ACCENT), 1))
+        p.setPen(QPen(QColor(T.accent), 1))
         p.drawRect(self.rect().adjusted(0, 0, -1, -1))
 
     def wheelEvent(self, e):

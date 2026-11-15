@@ -200,6 +200,8 @@ class MacroRecorder:
             return
         self._events = []
         self._down = set()
+        self._last_move = (0, 0)
+        self._last_move_t = 0.0
         self._last = time.perf_counter()
         self._record_moves = record_moves
         self._record_buttons = record_buttons
@@ -266,7 +268,8 @@ class MacroRecorder:
         if injected:
             return
         tok = _token(key)
-        if tok is None or tok == self._stop_token or not self._record_keys:
+        if (tok is None or tok == self._stop_token or not self._record_keys
+                or tok not in self._down):
             return
         self._down.discard(tok)
         self._gap()

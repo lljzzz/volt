@@ -239,7 +239,8 @@ class AutoclickerPage(QWidget):
         self.block_edit.textEdited.connect(lambda t: self._set("window_blocklist", t))
         c.setting("Never click on (title or app, comma-separated)", self.block_edit)
 
-        self.win_combo = RefreshingCombo(platform.list_windows)
+        self.win_combo = RefreshingCombo(platform.list_windows, editable=True)
+        self.win_combo.lineEdit().setPlaceholderText("Pick or type part of a title")
         if self.cfg.get("window_lock_title"):
             self.win_combo.addItem(self.cfg["window_lock_title"])
             self.win_combo.setCurrentText(self.cfg["window_lock_title"])
@@ -248,7 +249,8 @@ class AutoclickerPage(QWidget):
         self.win_sw = ToggleSwitch(self.cfg["window_lock_enabled"])
         self.win_sw.toggled.connect(lambda v: self._set("window_lock_enabled", v))
         c.setting("Only click in this window", self.win_combo, self.win_sw,
-                  tip="Clicking pauses whenever the chosen window isn't focused.")
+                  tip="Clicking pauses whenever the focused window's title doesn't "
+                      "contain this text. Pick a window or type part of a title.")
 
         if not platform.available():
             c.add(hint("Window failsafes are Windows-only."))

@@ -6,7 +6,6 @@ from PySide6.QtWidgets import (QAbstractItemView, QHBoxLayout, QLabel,
                                QPlainTextEdit, QVBoxLayout, QWidget)
 
 from core import snippets as snip_mod
-from .styles import ACCENT
 from .widgets import (Card, Segmented, ToggleSwitch, button, confirm, flow_row,
                       hint, page_header, rich_list, set_item, small_label)
 
@@ -87,7 +86,7 @@ class SnippetsPage(QWidget):
             it = QListWidgetItem()
             on = s.get("enabled", True)
             set_item(it, s.get("trigger") or "(no trigger)", preview,
-                     glyph="snippets", color=ACCENT if on else None, dim=not on)
+                     glyph="snippets", color="accent" if on else None, dim=not on)
             it.setData(Qt.UserRole, s["id"])
             self.snip_list.addItem(it)
             if s["id"] == self.current_id:
@@ -241,17 +240,21 @@ class SnippetsPage(QWidget):
             msg = "Add a trigger - this snippet can't fire without one."
         elif s:
             trig = s["trigger"]
-            others = [o for o in self.snips()
+            others = [o["trigger"] for o in self.snips()
                       if o is not s and o.get("enabled", True) and o.get("trigger")]
-            if any(o["trigger"] == trig for o in others):
-                msg = (f"Duplicate trigger - '{trig}' is already used by another "
-                       "snippet; only one of them will fire.")
-            else:
-                overlap = [o["trigger"] for o in others
-                           if o["trigger"].endswith(trig) or trig.endswith(o["trigger"])]
-                if overlap:
-                    msg = (f"Overlaps with {', '.join(overlap[:3])} - when both "
-                           "match, the longest trigger wins.")
+            early = snip_mod.blockers(trig, others)
+            blocked = [o for o in others if snip_mod.blockers(o, [trig])]
+            if trig in others:
+                msg = (f"Duplicate trigger: '{trig}' is already used by another "
+                       "snippet, so only one of them will fire.")
+            elif early:
+                msg = (f"This one can never fire: typing it sets off "
+                       f"'{early[0]}' first. Pick a trigger that doesn't contain "
+                       "another one.")
+            elif blocked:
+                names = ", ".join(f"'{b}'" for b in blocked[:3])
+                msg = (f"This trigger fires partway through {names}, so "
+                       f"{'that one' if len(blocked) == 1 else 'those'} can never fire.")
         self.warn.setText(msg)
         self.warn.setVisible(bool(msg))
 
@@ -262,7 +265,7 @@ class SnippetsPage(QWidget):
             return
         provider = (self.ctrl.clipboard.latest_text
                     if self.ctrl.clipboard else None)
-        text, back = snip_mod.split_cursor(snip_mod.render(s["text"], provider))
+        text, back = snip_mod.expand(s["text"], provider)
         if back:
             text = text[:len(text) - back] + "|" + text[len(text) - back:]
         rendered = text.replace("\n", " ⏎ ")

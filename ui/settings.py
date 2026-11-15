@@ -9,8 +9,9 @@ from PySide6.QtWidgets import (QAbstractItemView, QFileDialog, QHeaderView,
 from core import config as cfg_store
 from core.hotkeys import MODIFIERS, combo_to_text, normalize
 from .hotkey_button import HotkeyButton
-from .styles import AMBER, RED, TEXT_MUTED
-from .widgets import Card, ToggleSwitch, button, flow_row, page_header
+from .styles import ACCENT_NAMES, THEMES, T
+from .widgets import (AccentPicker, Card, Segmented, ToggleSwitch, button,
+                      flow_row, page_header)
 
 
 class SettingsPage(QWidget):
@@ -26,6 +27,17 @@ class SettingsPage(QWidget):
         root.setSpacing(16)
         head, _right = page_header("Settings")
         root.addLayout(head)
+
+        look = Card("Appearance")
+        self.theme_seg = Segmented(THEMES, self.cfg.get("theme", "dark"))
+        self.theme_seg.changed.connect(lambda v: self._set_look("theme", v))
+        look.setting("Theme", self.theme_seg,
+                     tip="Match Windows follows the light or dark app mode in "
+                         "Windows settings, and switches when it does.")
+        self.accent_pick = AccentPicker(ACCENT_NAMES, self.cfg.get("accent", "orange"))
+        self.accent_pick.changed.connect(lambda v: self._set_look("accent", v))
+        look.setting("Accent color", self.accent_pick)
+        root.addWidget(look)
 
         gen = Card("General")
         self._toggle_row(gen, "Launch on startup (opens quietly in the tray)",
@@ -54,6 +66,10 @@ class SettingsPage(QWidget):
                                       hid="panic")
         self.panic_btn.captured.connect(lambda c: self._set_hotkey("panic_hotkey", c))
         keys.setting("Panic - stop every clicker and macro", self.panic_btn)
+        self.window_btn = HotkeyButton(self.ctrl.hotkeys, self.cfg.get("window_hotkey", []),
+                                       hid="window")
+        self.window_btn.captured.connect(lambda c: self._set_hotkey("window_hotkey", c))
+        keys.setting("Show or hide the Volt window", self.window_btn)
         self._toggle_row(keys, "Palette: Enter pastes clipboard items / snippets "
                                "into the app you were in", "palette_paste", default=True,
                          tip="Off = Enter only copies. Shift+Enter always just copies.")
@@ -61,8 +77,8 @@ class SettingsPage(QWidget):
         root.addWidget(self._hotkeys_card())
 
         bk = Card("Backup", subtitle=(
-            "Export everything - settings, macros, snippets, anchors, colors - "
-            "to one JSON file, or restore from one."))
+            "Export everything - settings, macros, snippets, anchors, colors, "
+            "notes - to one JSON file, or restore from one."))
         bk.add(flow_row(button("Export settings…", "Ghost", self._export),
                         button("Import settings…", "Ghost", self._import),
                         button("Open data folder", "Ghost", self._open_data),
@@ -112,6 +128,7 @@ class SettingsPage(QWidget):
         add("Failsafe", "Panic (stop all)", cfg["settings"].get("panic_hotkey", []),
             loose=True)
         add("Palette", "Open palette", cfg["settings"].get("palette_hotkey", []))
+        add("Volt", "Show or hide window", cfg["settings"].get("window_hotkey", []))
         add("Clipboard", "Paste as plain text",
             cfg["clipboard"].get("paste_plain_hotkey", []), page="Clipboard")
         pk = cfg.get("picker", {})
@@ -173,8 +190,8 @@ class SettingsPage(QWidget):
             for col, text in enumerate((tool, action, display, status)):
                 it = QTableWidgetItem(text)
                 if col == 3:
-                    it.setForeground(QColor(RED if level == 2 else
-                                            AMBER if level == 1 else TEXT_MUTED))
+                    it.setForeground(QColor(T.red if level == 2 else
+                                        T.amber if level == 1 else T.text_muted))
                 self.hk_table.setItem(i, col, it)
 
     def _jump_from_table(self, row, _col):
@@ -185,11 +202,21 @@ class SettingsPage(QWidget):
 
     def sync(self):
         self._refresh_hotkey_table()
+        self.theme_seg.setValue(self.cfg.get("theme", "dark"))
+        self.accent_pick.setValue(self.cfg.get("accent", "orange"))
         self.ontop_sw.setChecked(self.cfg.get("always_on_top", False))
         self.awake_sw.setChecked(self.cfg.get("keep_awake", False))
         self.palette_btn.setCombo(self.cfg.get("palette_hotkey", []))
         self.panic_btn.setCombo(self.cfg.get("panic_hotkey", []))
+        self.window_btn.setCombo(self.cfg.get("window_hotkey", []))
         self._refresh_about()
+
+    def _set_look(self, key, value):
+        if self.cfg.get(key) == value:
+            return
+        self.cfg[key] = value
+        self.on_change()
+        self.win.apply_theme()
 
     def _refresh_about(self):
         self.about_lbl.setText(
@@ -201,9 +228,12 @@ class SettingsPage(QWidget):
             self, "Export Volt settings", "volt_backup.json", "JSON (*.json)")
         if not path:
             return
+        data = dict(self.ctrl.config)
+        if self.ctrl.notes:
+            data["notes"] = self.ctrl.notes.items
         try:
             with open(path, "w", encoding="utf-8") as f:
-                json.dump(self.ctrl.config, f, indent=2, ensure_ascii=False)
+                json.dump(data, f, indent=2, ensure_ascii=False)
             self.ctrl.toast.emit("Settings exported")
         except Exception as e:
             QMessageBox.warning(self, "Export failed", str(e))
@@ -221,15 +251,20 @@ class SettingsPage(QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Import failed", str(e))
             return
+        notes = data.pop("notes", None)
+        extra = (" Notes in the backup are added to your current notes."
+                 if isinstance(notes, list) and notes else "")
         resp = QMessageBox.question(
             self, "Import settings",
             "This replaces all current settings, macros and snippets with the "
-            "backup, then restarts Volt. Continue?")
+            f"backup, then restarts Volt.{extra} Continue?")
         if resp != QMessageBox.Yes:
             return
         merged = cfg_store._merge(cfg_store.DEFAULTS, data)
         self.ctrl.config.clear()
-        self.ctrl.config.update(cfg_store._migrate(merged))
+        self.ctrl.config.update(cfg_store._migrate(merged, data))
+        if isinstance(notes, list) and self.ctrl.notes:
+            self.ctrl.notes.merge(notes)
         self.win.restart()
 
     def _open_data(self):
@@ -252,6 +287,8 @@ class SettingsPage(QWidget):
         self.on_change()
         self.ctrl.refresh_hotkeys()
         self._refresh_hotkey_table()
+        if key == "palette_hotkey":
+            self.win.sync_search_keys()
 
     def set_keep_awake_state(self, v: bool):
         self.awake_sw.setChecked(bool(v))

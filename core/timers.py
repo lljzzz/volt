@@ -134,13 +134,14 @@ class TimerManager(QObject):
 
     @staticmethod
     def _auto_label(seconds: int) -> str:
-        if seconds % 3600 == 0:
-            return f"{seconds // 3600} h timer"
-        if seconds % 60 == 0:
-            return f"{seconds // 60} min timer"
-        if seconds > 60:
-            return f"{seconds // 60} min {seconds % 60} s timer"
-        return f"{seconds} s timer"
+        h, rem = divmod(int(seconds), 3600)
+        m, s = divmod(rem, 60)
+        parts = [f"{h} h"] if h else []
+        if m:
+            parts.append(f"{m} min")
+        if s or not parts:
+            parts.append(f"{s} s")
+        return " ".join(parts) + " timer"
 
 
 def fmt_remaining(seconds: int) -> str:
@@ -154,18 +155,19 @@ def parse_duration(text: str) -> int | None:
     t = text.strip().lower().replace(" ", "")
     if not t:
         return None
-    if re.fullmatch(r"\d+", t):
-        return int(t) * 60
+    num = r"(\d+(?:[.,]\d+)?)"
+    if re.fullmatch(num, t):
+        return round(float(t.replace(",", ".")) * 60) or None
     if re.fullmatch(r"\d+(:\d{1,2}){1,2}", t):
         parts = [int(p) for p in t.split(":")]
         secs = 0
         for p in parts:
             secs = secs * 60 + p
         return secs
-    m = re.fullmatch(r"(?:(\d+)h)?(?:(\d+)m(?:in)?)?(?:(\d+)s)?", t)
+    m = re.fullmatch(rf"(?:{num}h)?(?:{num}m(?:in)?)?(?:(\d+)s(?:ec)?)?", t)
     if m and any(m.groups()):
-        h, mi, s = (int(g) if g else 0 for g in m.groups())
-        return h * 3600 + mi * 60 + s
+        h, mi, s = (float(g.replace(",", ".")) if g else 0.0 for g in m.groups())
+        return round(h * 3600 + mi * 60 + s) or None
     m = re.fullmatch(r"(\d+)h(\d+)", t)
     if m:
         return int(m.group(1)) * 3600 + int(m.group(2)) * 60

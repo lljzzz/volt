@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QLineEdit,
                                QTimeEdit, QVBoxLayout, QWidget)
 
 from core.timers import fmt_remaining, parse_duration
-from .widgets import Card, button, flow_row, page_header, small_label
+from .widgets import Card, button, flow_row, page_header, set_prop, small_label
 
 PRESETS = [1, 5, 10, 15, 25, 45, 60]
 
@@ -104,8 +104,7 @@ class TimersPage(QWidget):
             lay.setContentsMargins(14, 10, 12, 10)
             lay.setSpacing(6)
             top = QHBoxLayout()
-            time_lbl = QLabel("")
-            time_lbl.setStyleSheet("font-size:18px; font-weight:800;")
+            time_lbl = QLabel("", objectName="BigTime")
             top.addWidget(time_lbl)
             top.addWidget(small_label(t["label"]))
             top.addStretch()
@@ -127,7 +126,7 @@ class TimersPage(QWidget):
     def _refresh(self):
         if set(self._rows) != {t["id"] for t in self.mgr.items}:
             self._rebuild()
-        else:
+        elif self.isVisible():
             self._refresh_values()
 
     def _refresh_values(self):
@@ -137,8 +136,7 @@ class TimersPage(QWidget):
                 continue
             time_lbl, pause, bar = widgets
             time_lbl.setText(fmt_remaining(self.mgr.remaining(t)))
-            time_lbl.setStyleSheet("font-size:18px; font-weight:800;"
-                                   + (" color:#6f7378;" if t["paused"] else ""))
+            set_prop(time_lbl, "paused", bool(t["paused"]))
             pause.setText("Resume" if t["paused"] else "Pause")
             bar.setValue(int(self.mgr.progress(t) * 1000))
 
@@ -148,9 +146,7 @@ class TimersPage(QWidget):
         self._sw_acc = 0.0
         self._laps: list[float] = []
         row = QHBoxLayout()
-        self.sw_lbl = QLabel("00:00.00")
-        self.sw_lbl.setStyleSheet("font-size:28px; font-weight:800; "
-                                  "font-family:'Cascadia Mono','Consolas',monospace;")
+        self.sw_lbl = QLabel("00:00.00", objectName="Stopwatch")
         row.addWidget(self.sw_lbl)
         row.addStretch()
         self.sw_go = button("Start", "Primary", self._sw_toggle)
@@ -223,3 +219,4 @@ class TimersPage(QWidget):
         if self._sw_start is not None:
             self._sw_timer.start()
         self._sw_tick()
+        self._refresh_values()

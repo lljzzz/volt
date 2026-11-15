@@ -184,7 +184,7 @@ class ClickerEngine:
             if any(b in title or (proc and b in proc) for b in blocklist):
                 return True
         if lock_on:
-            target = (cfg.get("window_lock_title") or "").lower()
+            target = (cfg.get("window_lock_title") or "").strip().lower()
             if target and target not in title:
                 return True
         return False

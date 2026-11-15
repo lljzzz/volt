@@ -7,7 +7,6 @@ from PySide6.QtWidgets import (QAbstractItemView, QHBoxLayout, QLineEdit,
                                QVBoxLayout, QWidget)
 
 from core import transforms
-from .styles import ACCENT
 from .widgets import (Card, button, confirm, page_header, rich_list, set_item,
                       small_label)
 
@@ -101,7 +100,7 @@ class NotesPage(QWidget):
             it = QListWidgetItem()
             set_item(it, self.store.title_of(n), sub or "No additional text",
                      glyph="pinned" if n["pinned"] else "notes",
-                     color=ACCENT if n["pinned"] else None,
+                     color="accent" if n["pinned"] else None,
                      right=_when(n["updated"]))
             it.setData(Qt.UserRole, n["id"])
             self.list.addItem(it)
@@ -129,7 +128,17 @@ class NotesPage(QWidget):
             return
         self._show(item.data(Qt.UserRole))
 
+    def _drop_if_blank(self, keep=None):
+        old = self.store.get(self.current_id) if self.current_id else None
+        if old and old["id"] != keep and not old["text"].strip():
+            self.store.delete(old["id"])
+            return True
+        return False
+
     def _show(self, nid):
+        if self._drop_if_blank(keep=nid):
+            self.current_id = nid
+            self._reload()
         self.current_id = nid
         n = self.store.get(nid) if nid else None
         self.editor.blockSignals(True)
@@ -141,6 +150,7 @@ class NotesPage(QWidget):
         self._update_stats()
 
     def new_note(self, text: str = ""):
+        self._drop_if_blank()
         n = self.store.add(text if isinstance(text, str) else "")
         self.search.clear()
         self.current_id = n["id"]
@@ -179,7 +189,7 @@ class NotesPage(QWidget):
             sub = " ".join(body[1].split())[:120] if len(body) > 1 else ""
             set_item(item, self.store.title_of(n), sub or "No additional text",
                      glyph="pinned" if n["pinned"] else "notes",
-                     color=ACCENT if n["pinned"] else None, right="now")
+                     color="accent" if n["pinned"] else None, right="now")
             item.setData(Qt.UserRole, n["id"])
 
     def _update_stats(self):
@@ -214,6 +224,11 @@ class NotesPage(QWidget):
             self.list.setCurrentRow(0)
         else:
             self._show(None)
+
+    def hideEvent(self, e):
+        if self._drop_if_blank():
+            self.current_id = None
+        super().hideEvent(e)
 
     def sync(self):
         self._reload()

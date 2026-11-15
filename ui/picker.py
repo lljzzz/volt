@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QMenu,
 
 from core import picker as pk
 from .hotkey_button import HotkeyButton
-from .styles import BORDER_2
+from .styles import T
 from .widgets import Card, Segmented, ToggleSwitch, button, page_header, small_label
 
 HISTORY_MAX = 32
@@ -26,7 +26,7 @@ class Loupe(QFrame):
     def paintEvent(self, _):
         p = QPainter(self)
         r = self.rect().adjusted(0, 0, -1, -1)
-        p.fillRect(r, QColor("#0f1012"))
+        p.fillRect(r, QColor(T.field))
         if self.pm is not None:
             p.setRenderHint(QPainter.SmoothPixmapTransform, False)
             p.drawPixmap(r, self.pm)
@@ -38,7 +38,7 @@ class Loupe(QFrame):
             p.drawRect(c)
             p.setPen(QPen(QColor("#ffffff"), 1))
             p.drawRect(c)
-        p.setPen(QColor(BORDER_2))
+        p.setPen(QColor(T.border_2))
         p.drawRect(r)
 
 
@@ -81,7 +81,7 @@ class PickerPage(QWidget):
         row.setSpacing(16)
         self.loupe = Loupe()
         row.addWidget(self.loupe)
-        self.swatch = QFrame()
+        self.swatch = QFrame(objectName="LiveSwatch")
         self.swatch.setFixedSize(110, 110)
         row.addWidget(self.swatch)
         col = QVBoxLayout()
@@ -107,19 +107,22 @@ class PickerPage(QWidget):
     def _show_rgb(self, rgb):
         self._rgb = rgb
         hx = pk.to_hex(rgb)
-        self.swatch.setStyleSheet(
-            f"background:{hx}; border:1px solid {BORDER_2}; border-radius:10px;")
+        self.swatch.setStyleSheet(f"background:{hx};")
         for kind, b in self.values.items():
             b.setText(pk.fmt(rgb, kind))
 
     def _live_tick(self):
         pos = QCursor.pos()
-        rgb = pk.pixel_at(pos.x(), pos.y())
-        if rgb is None:
+        pm = pk.grab_around(pos.x(), pos.y(), LOUPE_RADIUS)
+        if pm is None:
             return
-        self._show_rgb(rgb)
+        img = pm.toImage()
+        c = img.pixelColor(img.width() // 2, img.height() // 2)
+        rgb = (c.red(), c.green(), c.blue())
+        if rgb != self._rgb:
+            self._show_rgb(rgb)
         self.pos_lbl.setText(f"({pos.x()}, {pos.y()})")
-        self.loupe.set_pixmap(pk.grab_around(pos.x(), pos.y(), LOUPE_RADIUS))
+        self.loupe.set_pixmap(pm)
 
     def _capture_card(self):
         c = Card("Capture")
@@ -180,7 +183,7 @@ class PickerPage(QWidget):
             b.setFixedSize(30, 30)
             b.setCursor(Qt.PointingHandCursor)
             b.setToolTip(f"{hx} - click to copy, right-click to remove")
-            b.setStyleSheet(f"background:{hx}; border:1px solid {BORDER_2};")
+            b.setStyleSheet(f"background:{hx};")
             b.clicked.connect(lambda _=False, h=hx: self._copy_rgb(pk.from_hex(h)))
             b.setContextMenuPolicy(Qt.CustomContextMenu)
             b.customContextMenuRequested.connect(

@@ -125,9 +125,14 @@ class TextPage(QWidget):
         self.err.setVisible(False)
 
     def _paste(self):
-        if self.ctrl.clipboard:
-            self.edit.setPlainText(self.ctrl.clipboard.latest_text())
-            self.edit.setFocus()
+        text = self.ctrl.clipboard.current_text() if self.ctrl.clipboard else ""
+        if not text:
+            self.ctrl.toast.emit("The clipboard has no text")
+            return
+        c = self.edit.textCursor()
+        c.select(c.SelectionType.Document)
+        c.insertText(text)
+        self.edit.setFocus()
 
     def _copy(self):
         cur, text = self._target()

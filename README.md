@@ -25,6 +25,8 @@ A small Windows app that rolls a bunch of everyday tools into one: an autoclicke
 
 The palette ties it together. Press Ctrl+Alt+Space in any app and start typing: run a macro, paste an old clipboard entry, start a timer (`timer 10m`), save a note (`note: call dentist`), do some math, snap a window to half the screen.
 
+There's a dark and a light theme, or Volt can follow the Windows setting, and you can pick from five accent colors.
+
 ## Download
 
 Get `Volt.exe` from the [releases page](https://github.com/lljzzz/volt/releases). It's one portable file with no installer, for Windows 10 or 11 (64-bit).
@@ -65,6 +67,7 @@ The build settings are in `Volt.spec`. It leaves out the parts of Qt that Volt d
 | Pick a color | Ctrl+Alt+C |
 | Nudge the cursor | Ctrl+Alt+Arrows (add Shift for bigger steps) |
 | Move the active window | Win+Alt+Arrows (add Shift to resize) |
+| Show or hide Volt | not set |
 
 You can change all of them. Settings has a table of every hotkey with clashes marked. By default a Volt hotkey isn't passed on to the app you're in, so Ctrl+Y won't also trigger redo.
 
